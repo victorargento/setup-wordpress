@@ -1,0 +1,59 @@
+version: '3.3'
+
+services:
+
+  traefik:
+    image: traefik:v2.4.13
+    command:
+      # - "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entryPoint.permanent=true"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      # - "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.myresolver.acme.email=yourmail@example.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      # - "8080:8080"
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  db:
+    image: mariadb
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: dbweb
+      MARIADB_USER: web-user
+      MARIADB_PASSWORD: your-password
+    volumes:
+      - ./db:/var/lib/mysql
+
+  wordpress:
+    image: wordpress
+    restart: always
+    environment:
+        WORDPRESS_DB_HOST: db
+        WORDPRESS_DB_NAME: dbweb
+        WORDPRESS_DB_USER: web-user
+        WORDPRESS_DB_PASSWORD: your-password
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wordpress.rule=Host(`example.com`)"
+      - "traefik.http.routers.wordpress.entrypoints=websecure"
+      - "traefik.http.routers.wordpress.tls.certresolver=myresolver"
+    volumes:
+      - ./wordpress-conf/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+      - ./website:/var/www/html
+        
+  redis:
+    image: redis
+    restart: always
